@@ -1,5 +1,6 @@
 package com.example.food_app
 
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -13,16 +14,42 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
-import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 
 class FoodDetail : Fragment() {
     val requestCodeGallery: Int = 1
-    val requestConnect: Int = 2
+    val requestPick: Int = 2
     var selectedImage: Uri? = null
     var selectedBitmap: Bitmap? = null
+
+    private val launcher =
+        registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            // Resim seçildiğinde yapılması gereken işlemler
+
+            uri?.let {
+                try {
+                    val imageView = view?.findViewById<ImageView>(R.id.imageView)
+                    context?.let { context ->
+                        if (android.os.Build.VERSION.SDK_INT >= 28) {
+                            val source = ImageDecoder.createSource(context.contentResolver, it)
+                            selectedBitmap = ImageDecoder.decodeBitmap(source)
+                            imageView?.setImageBitmap(selectedBitmap)
+                        } else {
+                            selectedBitmap =
+                                MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                            imageView?.setImageBitmap(selectedBitmap)
+                        }
+                        selectedImage = it // Seçilen resmin URI'sini kaydedin
+                    }
+                } catch (e: Exception) {
+                    println("Ex: $e")
+                }
+            }
+        }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -49,102 +76,29 @@ class FoodDetail : Fragment() {
     }
 
     private fun checkPermissions() {
-        if (ContextCompat.checkSelfPermission(
-                requireContext(),
-                android.Manifest.permission.READ_EXTERNAL_STORAGE
-            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            activity?.let { act ->
+        activity?.let { act ->
+            if (ContextCompat.checkSelfPermission(
+                    act,
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 ActivityCompat.requestPermissions(
                     act,
                     arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
                     requestCodeGallery
                 )
-
-            }
-        } else {
-            val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-            activity?.let {
-                ActivityCompat.startActivityForResult(
-                    it,
-                    intent,
-                    requestConnect,
-                    null
-                )
-            }
-
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        if (requestCode == requestCodeGallery) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                val intent =
-                    Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-                activity?.let {
-                    ActivityCompat.startActivityForResult(
-                        it,
-                        intent,
-                        requestConnect,
-                        null
-                    )
-                }
             } else {
-                Toast.makeText(context, "İzin reddedildi.", Toast.LENGTH_SHORT).show()
+                openGallery()
             }
         }
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        println("onActivityResult")
-        if (requestCode == requestConnect && data != null) {
-            try {
-                selectedImage = data.data
-                val imageView = view?.findViewById<ImageView>(R.id.imageView)
-                context?.let { it1 ->
-                    if (selectedImage != null) {
-                        if (android.os.Build.VERSION.SDK_INT >= 28) {
-                            val fileSource = ImageDecoder.createSource(
-                                it1.contentResolver,
-                                selectedImage!!
-                            )
-                            selectedBitmap = ImageDecoder.decodeBitmap(fileSource)
-                            println("selectedBitmap: $selectedBitmap")
-                            imageView!!.setImageBitmap(selectedBitmap)
-                        } else {
-                            selectedBitmap = MediaStore.Images.Media.getBitmap(
-                                it1.contentResolver,
-                                selectedImage
-                            )
-                            imageView!!.setImageBitmap(selectedBitmap)
-                        }
-                    }
-                }
-
-                return
-            } catch (e: Exception) {
-                println("Ex: $e")
-            }
-        }
-        super.onActivityResult(requestCode, resultCode, data)
     }
 
 
-//        val requestPermission =
-//            registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-//                if (isGranted) {
-//                    checkPermissions()
-//                } else {
-//                    Toast.makeText(
-//                        context,
-//                        "İzin reddedildi.",
-//                        Toast.LENGTH_SHORT
-//                    ).show()
-//                }
-//            }
+    private fun openGallery() {
+        println("openGallery")
+        val mimeType = "image/*"
+        println("mimeTypes: $mimeType")
+        launcher.launch(mimeType)
+    }
+
 }
